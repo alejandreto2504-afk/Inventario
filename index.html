@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Control de Inventario Editable</title>
+  <!-- Librería SheetJS (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --border: #e2e8f0;
+      --danger-bg: #fecaca;
+      --danger-text: #991b1b;
+      --warning-bg: #fef08a;
+      --warning-text: #854d0e;
+      --success-bg: #bbf7d0;
+      --success-text: #166534;
+      --excel-color: #107c41;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1, h2 {
+      color: #1e293b;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+    }
+
+    .card h3 {
+      margin: 0 0 10px 0;
+      font-size: 0.9rem;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .card .value {
+      font-size: 1.8rem;
+      font-weight: bold;
+    }
+
+    .section {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+      margin-bottom: 25px;
+    }
+
+    .excel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+      justify-content: space-between;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+    }
+
+    .excel-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .grid-forms {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    input, select, button {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+
+    .table-input {
+      width: 70px;
+      padding: 5px;
+    }
+
+    .table-input-text {
+      width: 120px;
+      padding: 5px;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .btn-excel-export {
+      background-color: var(--excel-color);
+      color: white;
+      font-size: 1rem;
+      padding: 12px 20px;
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+
+    .btn-success {
+      background-color: var(--success);
+    }
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    th {
+      background-color: #f8fafc;
+      color: #475569;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      display: inline-block;
+    }
+
+    .badge-ok { background: var(--success-bg); color: var(--success-text); }
+    .badge-recomprar { background: var(--warning-bg); color: var(--warning-text); }
+    .badge-sin-stock { background: var(--danger-bg); color: var(--danger-text); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>📦 Control de Inventario Editable</h1>
+
+  <div class="section excel-actions">
+    <div class="excel-group">
+      <label for="excel-file" style="font-weight: bold; color: #166534;">📂 Importar Excel:</label>
+      <input type="file" id="excel-file" accept=".xlsx, .xls, .csv">
+    </div>
+    <div>
+      <button class="btn-excel-export" onclick="exportarAExcel()">📊 Descargar Reporte en Excel (.xlsx)</button>
+    </div>
+  </div>
+
+  <div class="dashboard">
+    <div class="card">
+      <h3>Total Productos</h3>
+      <div class="value" id="total-productos">0</div>
+    </div>
+    <div class="card">
+      <h3>Por Recomprar</h3>
+      <div class="value" id="total-alertas" style="color: #d97706;">0</div>
+    </div>
+    <div class="card">
+      <h3>Valor Total Inventario</h3>
+      <div class="value" id="valor-total">$0.00</div>
+    </div>
+  </div>
+
+  <div class="grid-forms">
+    <div class="section">
+      <h2>🆕 Agregar Nuevo Producto</h2>
+      <form id="form-producto" class="form-grid">
+        <input type="text" id="prod-codigo" placeholder="Código (ej. P004)" required>
+        <input type="text" id="prod-nombre" placeholder="Nombre Producto" required>
+        <input type="number" step="0.01" id="prod-costo" placeholder="Costo ($)" required>
+        <input type="number" step="0.01" id="prod-venta" placeholder="Venta ($)" required>
+        <input type="number" id="prod-stockmin" placeholder="Stock Mín." required>
+        <input type="number" id="prod-stockinicial" placeholder="Stock Inicial" value="0">
+        <button type="submit" class="btn-success" style="grid-column: 1 / -1;">Guardar Producto</button>
+      </form>
+    </div>
+
+    <div class="section">
+      <h2>🔄 Registrar Movimiento</h2>
+      <form id="form-movimiento" class="form-grid">
+        <input type="date" id="mov-fecha" required>
+        <select id="mov-codigo" required>
+          <option value="">Selecciona Código</option>
+        </select>
+        <select id="mov-tipo" required>
+          <option value="Entrada">Entrada</option>
+          <option value="Salida">Salida</option>
+        </select>
+        <input type="number" id="mov-cantidad" placeholder="Cantidad" min="1" required>
+        <button type="submit" style="grid-column: 1 / -1;">Registrar Entrada / Salida</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📋 Estado del Inventario (Edición Rápida)</h2>
+    <p style="font-size: 0.85rem; color: #64748b;">* Puedes editar el nombre, costos, precios y stock mínimo directamente en la tabla. Las Entradas, Salidas y Stock Actual se calculan automáticamente.</p>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Producto</th>
+            <th>Costo ($)</th>
+            <th>Venta ($)</th>
+            <th>Stock Mín.</th>
+            <th>Stock Inicial</th>
+            <th>Entradas</th>
+            <th>Salidas</th>
+            <th>Stock Actual</th>
+            <th>Estado</th>
+            <th>Valor Total ($)</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-inventario">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let productos = JSON.parse(localStorage.getItem('mi_inventario')) || [
+    { codigo: 'P001', nombre: 'Perfume Khamra', costo: 25, venta: 40, stockMin: 2, stockInicial: 5, entradas: 0, salidas: 0 },
+    { codigo: 'P002', nombre: 'Odyssey Artist', costo: 20, venta: 35, stockMin: 3, stockInicial: 1, entradas: 0, salidas: 0 },
+    { codigo: 'P003', nombre: 'Barara Viking', costo: 30, venta: 50, stockMin: 2, stockInicial: 0, entradas: 0, salidas: 0 }
+  ];
+
+  document.getElementById('mov-fecha').valueAsDate = new Date();
+
+  function guardarEnLocalStorage() {
+    localStorage.setItem('mi_inventario', JSON.stringify(productos));
+  }
+
+  function cargarSelectorCodigos() {
+    const select = document.getElementById('mov-codigo');
+    select.innerHTML = '<option value="">Selecciona Código</option>';
+    productos.forEach(p => {
+      select.innerHTML += `<option value="${p.codigo}">${p.codigo} - ${p.nombre}</option>`;
+    });
+  }
+
+  function actualizarPagina() {
+    guardarEnLocalStorage();
+    cargarSelectorCodigos();
+
+    const tbody = document.getElementById('tabla-inventario');
+    tbody.innerHTML = '';
+
+    let totalProds = productos.length;
+    let alertasCount = 0;
+    let valorTotalSum = 0;
+
+    productos.forEach((p, index) => {
+      p.stockInicial = p.stockInicial || 0;
+      p.entradas = p.entradas || 0;
+      p.salidas = p.salidas || 0;
+      p.costo = p.costo || 0;
+      p.venta = p.venta || 0;
+      p.stockMin = p.stockMin || 0;
+
+      let stockActual = p.stockInicial + p.entradas - p.salidas;
+
+      let estadoText = 'OK';
+      let badgeClass = 'badge-ok';
+
+      if (stockActual === 0) {
+        estadoText = 'SIN STOCK';
+        badgeClass = 'badge-sin-stock';
+        alertasCount++;
+      } else if (stockActual <= p.stockMin) {
+        estadoText = 'RECOMPRAR';
+        badgeClass = 'badge-recomprar';
+        alertasCount++;
+      }
+
+      let valorTotalProd = p.costo * stockActual;
+      valorTotalSum += valorTotalProd;
+
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${p.codigo}</strong></td>
+          <td><input type="text" class="table-input-text" value="${p.nombre}" onchange="editarCampo(${index}, 'nombre', this.value)"></td>
+          <td><input type="number" step="0.01" class="table-input" value="${p.costo}" onchange="editarCampo(${index}, 'costo', parseFloat(this.value))"></td>
+          <td><input type="number" step="0.01" class="table-input" value="${p.venta}" onchange="editarCampo(${index}, 'venta', parseFloat(this.value))"></td>
+          <td><input type="number" class="table-input" value="${p.stockMin}" onchange="editarCampo(${index}, 'stockMin', parseInt(this.value))"></td>
+          <td><input type="number" class="table-input" value="${p.stockInicial}" onchange="editarCampo(${index}, 'stockInicial', parseInt(this.value))"></td>
+          <td style="color: green; font-weight: bold;">+${p.entradas}</td>
+          <td style="color: red; font-weight: bold;">-${p.salidas}</td>
+          <td><strong>${stockActual}</strong></td>
+          <td><span class="badge ${badgeClass}">${estadoText}</span></td>
+          <td>$${valorTotalProd.toFixed(2)}</td>
+          <td><button class="btn-danger" onclick="eliminarProducto(${index})">Eliminar</button></td>
+        </tr>
+      `;
+    });
+
+    document.getElementById('total-productos').textContent = totalProds;
+    document.getElementById('total-alertas').textContent = alertasCount;
+    document.getElementById('valor-total').textContent = `$${valorTotalSum.toFixed(2)}`;
+  }
+
+  function editarCampo(index, campo, valor) {
+    if (isNaN(valor) && campo !== 'nombre') return;
+    productos[index][campo] = valor;
+    actualizarPagina();
+  }
+
+  function eliminarProducto(index) {
+    if (confirm(`¿Seguro que deseas eliminar ${productos[index].nombre}?`)) {
+      productos.splice(index, 1);
+      actualizarPagina();
+    }
+  }
+
+  document.getElementById('form-producto').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const codigo = document.getElementById('prod-codigo').value.toUpperCase().trim();
+
+    if (productos.some(p => p.codigo === codigo)) {
+      alert('¡Ese código ya existe! Usa uno diferente.');
+      return;
+    }
+
+    const nuevoProducto = {
+      codigo: codigo,
+      nombre: document.getElementById('prod-nombre').value,
+      costo: parseFloat(document.getElementById('prod-costo').value),
+      venta: parseFloat(document.getElementById('prod-venta').value),
+      stockMin: parseInt(document.getElementById('prod-stockmin').value),
+      stockInicial: parseInt(document.getElementById('prod-stockinicial').value) || 0,
+      entradas: 0,
+      salidas: 0
+    };
+
+    productos.push(nuevoProducto);
+    actualizarPagina();
+    this.reset();
+  });
+
+  document.getElementById('form-movimiento').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const codigo = document.getElementById('mov-codigo').value;
+    const tipo = document.getElementById('mov-tipo').value;
+    const cantidad = parseInt(document.getElementById('mov-cantidad').value);
+
+    const producto = productos.find(p => p.codigo === codigo);
+    if (producto) {
+      if (tipo === 'Entrada') {
+        producto.entradas = (producto.entradas || 0) + cantidad;
+      } else if (tipo === 'Salida') {
+        let stockActual = (producto.stockInicial || 0) + (producto.entradas || 0) - (producto.salidas || 0);
+        if (cantidad > stockActual) {
+          alert('¡Atención! La cantidad a retirar es mayor al stock actual disponible.');
+        }
+        producto.salidas = (producto.salidas || 0) + cantidad;
+      }
+      actualizarPagina();
+      document.getElementById('mov-cantidad').value = '';
+    }
+  });
+
+  document.getElementById('excel-file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      if (rows.length === 0) {
+        alert("El archivo Excel está completamente vacío.");
+        return;
+      }
+
+      let headerRowIndex = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].some(cell => String(cell).trim() !== "")) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        alert("No se encontraron datos leíbles en la hoja.");
+        return;
+      }
+
+      const headers = rows[headerRowIndex].map(h => String(h).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+
+      let idxNombre = headers.findIndex(h => h.includes('prod') || h.includes('nomb') || h.includes('desc') || h.includes('item') || h.includes('art') || h.includes('detal'));
+      let idxActual = headers.findIndex(h => h.includes('actua') || h.includes('stock') || h.includes('exist') || h.includes('cant'));
+      let idxAnterior = headers.findIndex(h => h.includes('anteri') || h.includes('inici') || h.includes('prev'));
+      let idxCosto = headers.findIndex(h => h.includes('cost'));
+      let idxVenta = headers.findIndex(h => h.includes('vent') || h.includes('prec'));
+      let idxMin = headers.findIndex(h => h.includes('min'));
+
+      if (idxNombre === -1) idxNombre = 0;
+      if (idxActual === -1) idxActual = 1;
+      if (idxAnterior === -1) idxAnterior = 2;
+
+      let nuevosProductos = [];
+      let importados = 0;
+
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+
+        let valNombre = row[idxNombre];
+        if (!valNombre || String(valNombre).trim() === "" || String(valNombre).toLowerCase().includes('total')) continue;
+
+        importados++;
+        let stAnterior = parseInt(row[idxAnterior]) || 0;
+        let stActual = parseInt(row[idxActual]) || 0;
+        let diff = stActual - stAnterior;
+
+        nuevosProductos.push({
+          codigo: 'P' + String(importados).padStart(3, '0'),
+          nombre: String(valNombre).trim(),
+          costo: parseFloat(row[idxCosto]) || 0,
+          venta: parseFloat(row[idxVenta]) || 0,
+          stockMin: parseInt(row[idxMin]) || 0,
+          stockInicial: stAnterior,
+          entradas: diff > 0 ? diff : 0,
+          salidas: diff < 0 ? Math.abs(diff) : 0
+        });
+      }
+
+      if (importados > 0) {
+        productos = nuevosProductos;
+        alert(`¡Éxito! Se procesaron ${importados} productos desde el Excel.`);
+        actualizarPagina();
+      } else {
+        alert("No se detectaron filas válidas de productos debajo de los encabezados.");
+      }
+
+      e.target.value = '';
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+
+  function exportarAExcel() {
+    const datosExportar = productos.map(p => {
+      let stockIni = p.stockInicial || 0;
+      let ent = p.entradas || 0;
+      let sal = p.salidas || 0;
+      let stActual = stockIni + ent - sal;
+      let estado = stActual === 0 ? 'SIN STOCK' : (stActual <= p.stockMin ? 'RECOMPRAR' : 'OK');
+
+      return {
+        'Código': p.codigo,
+        'Producto': p.nombre,
+        'Costo ($)': p.costo,
+        'Venta ($)': p.venta,
+        'Stock Mín.': p.stockMin,
+        'Stock Inicial': stockIni,
+        'Entradas': ent,
+        'Salidas': sal,
+        'Stock Actual': stActual,
+        'Estado': estado,
+        'Valor Total ($)': p.costo * stActual
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario Concretado");
+    XLSX.writeFile(workbook, "Control_Inventario_Concretado.xlsx");
+  }
+
+  actualizarPagina();
+</script>
+
+</body>
+</html>
